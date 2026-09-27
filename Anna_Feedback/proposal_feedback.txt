@@ -1,0 +1,10 @@
+I have posted your survey on Piazza.
+
+Disclaimer: in the process of constructing feedback, I recorded my audio and got AI to rephrase my feedback in a concise, clear manner so that I can mark faster + you get more detailed feedback. I did not run any of the assignments through AI.
+
+Simple and advanced methods
+Your simple method is simple linear regression and your advanced method is multiple linear regression. Multiple linear regression already includes the simple version, so the two methods are not distinct enough. Please choose a different simple method.
+
+Since your survey collects a lot of quantitative data, it makes sense that linear regression comes up naturally. One option is to report a correlation coefficient as your simple method, which would be clearly different from your advanced method.
+
+1/1
