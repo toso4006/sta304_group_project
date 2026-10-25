@@ -1,0 +1,291 @@
+---
+title: "Daily Caffeinated Beverage Consumption and Lecture Concentration"
+subtitle: "Exploratory Data Analysis"
+author: "Hao Chen, Haojie Wang, Qianshu Wang, Zhiyi Song"
+format:
+  pdf:
+    documentclass: article
+    papersize: letter
+    fontsize: 11pt
+    geometry: margin=0.75in
+    pdf-engine: xelatex
+    toc: false
+    number-sections: false
+    colorlinks: false
+    code-block-font-size: "\\scriptsize"
+execute:
+  echo: false
+  message: false
+  warning: false
+  error: false
+  cache: false
+header-includes:
+  - \usepackage{booktabs,float,fvextra,fancyhdr}
+  - \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,fontsize=\scriptsize,commandchars=\\\{\}}
+  - \DefineVerbatimEnvironment{verbatim}{Verbatim}{breaklines,fontsize=\scriptsize}
+  - \makeatletter\renewcommand{\maketitle}{\begingroup\raggedright{\LARGE\bfseries\@title\par}\vspace{0.5em}{\normalsize\@author\par}\vspace{1em}\endgroup}\makeatother
+  - \AtBeginDocument{\setlength{\parskip}{5pt}\setlength{\parindent}{0pt}}
+  - \pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small STA304 \quad Exploratory Data Analysis}\fancyfoot[C]{\small\thepage}\setlength{\headheight}{14pt}
+---
+
+```{r}
+#| label: setup
+#| include: false
+# Import the supplied CSV; this is the only external input file.
+library(datawizard)
+library(knitr)
+data_file <- "Dataset - Daily Caffeine Consumption and Lecture Concentration.csv"
+raw <- read.csv(data_file, fileEncoding = "UTF-8-BOM", check.names = FALSE)
+beverages <- c("Coffee", "Tea", "Energy_drink", "Other_beverage")
+columns <- c("Section", beverages, "Caffeine_consumption", "Concentration",
+             "Sleeping_hour", "Stress_level", "Lecture_attended")
+stopifnot(all(c("studentID", columns) %in% names(raw)), nrow(raw) == 64L)
+ids <- trimws(as.character(raw$studentID))
+stopifnot(!anyNA(ids), all(nzchar(ids)), !anyDuplicated(ids))
+d <- raw[columns] # IDs are excluded from all analysis objects and displays.
+rm(raw, ids)
+# Check all analytic responses; never treat missing consumption as zero.
+stopifnot(all(vapply(d, is.numeric, logical(1))), !anyNA(d),
+  all(vapply(d, function(x) all(is.finite(x)), logical(1))),
+  all(d$Section %in% c(1, 2)), all(as.matrix(d[beverages]) >= 0),
+  all(d$Concentration >= 0 & d$Concentration <= 10),
+  all(d$Stress_level >= 0 & d$Stress_level <= 10),
+  all(d$Sleeping_hour >= 0 & d$Sleeping_hour <= 24),
+  all(d$Lecture_attended >= 0),
+  all(d$Lecture_attended == floor(d$Lecture_attended)))
+d$Total_verified <- rowSums(d[beverages], na.rm = FALSE)
+stopifnot(all(abs(d$Total_verified - d$Caffeine_consumption) < 1e-8))
+n <- nrow(d)
+vars <- c(beverages, "Total_verified", "Concentration", "Sleeping_hour",
+          "Stress_level", "Lecture_attended")
+labels <- c("Coffee (servings/day)", "Tea (servings/day)",
+  "Energy drinks (servings/day)", "Other caffeinated drinks (servings/day)",
+  "Total caffeinated drinks (servings/day)", "Lecture concentration (0--10)",
+  "Sleep (hours/day)", "Stress (0--10)", "Lectures attended (past 7 days)")
+# Use an easystats package, checking means and SDs against base R.
+desc <- as.data.frame(datawizard::describe_distribution(d[vars], centrality = "mean"))
+desc <- desc[match(vars, desc$Variable), ]
+tab <- data.frame(Variable = labels, n = n,
+  Mean = sapply(d[vars], mean), Median = sapply(d[vars], median),
+  SD = sapply(d[vars], sd), IQR = sapply(d[vars], IQR, type = 7),
+  Min = sapply(d[vars], min), Max = sapply(d[vars], max))
+stopifnot(isTRUE(all.equal(unname(tab$Mean), unname(desc$Mean))),
+          isTRUE(all.equal(unname(tab$SD), unname(desc$SD))))
+section <- factor(d$Section, levels = 1:2, labels = c("LEC0101", "LEC0102"))
+counts <- table(section, useNA = "always")
+freq <- data.frame(Category = c(levels(section), "Missing"),
+  Count = as.integer(counts), Percent = 100 * as.integer(counts) / n)
+# Fit the same adjusted model and assess assumptions before interpreting tests.
+model <- lm(Concentration ~ Total_verified + Sleeping_hour + Stress_level, d)
+stopifnot(nobs(model) == n)
+normality <- shapiro.test(resid(model))
+cooks <- cooks.distance(model)
+fit <- summary(model)
+coefs <- cbind(coef(fit), confint(model))
+cor_test <- cor.test(d$Total_verified, d$Concentration, method = "pearson")
+# Retain all observations in primary analyses; check the largest total separately.
+maximum <- max(d$Total_verified)
+stopifnot(sum(d$Total_verified == maximum) == 1L)
+keep <- d$Total_verified < maximum
+model_trim <- update(model, data = d[keep, ])
+cor_trim <- cor.test(d$Total_verified[keep], d$Concentration[keep],
+                     method = "pearson")
+trim <- cbind(coef(summary(model_trim)), confint(model_trim))[2, ]
+model_p <- pf(fit$fstatistic[1], 3, df.residual(model), lower.tail = FALSE)
+# Formatting is applied only after calculations at full precision.
+fmt <- function(x, digits = 3) sprintf(paste0("%.", digits, "f"), x)
+latex_table <- function(x, caption, first_width = NULL,
+                        size = "\\small") {
+  out <- knitr::kable(x, format = "latex", booktabs = TRUE,
+    row.names = FALSE, align = c("l", rep("r", ncol(x) - 1)),
+    escape = TRUE, caption = caption, position = "H", label = NA)
+  if (!is.null(first_width)) {
+    out <- sub("\\begin{tabular}{l",
+      paste0("\\begin{tabular}{p{", first_width, "}"), out, fixed = TRUE)
+  }
+  out <- sub("\\centering", paste0("\\centering\n", size,
+    "\n\\setlength{\\tabcolsep}{4pt}"), out, fixed = TRUE)
+  cat(out, "\n", sep = "")
+}
+```
+
+**Research questions.** Is daily caffeinated beverage consumption associated with self-reported lecture concentration? What is the association after adjusting for sleep duration and stress?
+
+## 1. Data preparation and scope
+
+The supplied CSV contains `r n` responses with unique, nonmissing course-specific IDs. The codebook defines nine quantitative variables and one analytic categorical variable, lecture section: 1 (LEC0101) or 2 (LEC0102). All analytic responses are observed. IDs are excluded from the analysis objects and reported results. No responses were edited, imputed or excluded.
+
+Daily consumption is averaged over the past seven days. One serving is 250 mL: the total measures **beverage volume, not caffeine dose in milligrams**. All `r n` supplied totals match the sum of the four beverage components. Summaries, Pearson correlation and the adjusted model use all `r n` students. Completeness and ranges were checked; extreme but possible values were retained.
+
+## 2. Descriptive statistics
+
+```{r}
+#| label: summary-table
+#| results: asis
+# Display all required quantitative summaries, including the derived total.
+display <- tab[1:6]
+display[3:6] <- lapply(display[3:6], fmt, digits = 2)
+display$Range <- paste0(fmt(tab$Min, 2), "--", fmt(tab$Max, 2))
+latex_table(display, sprintf(paste0(
+  "Summary statistics for all nine quantitative variables (n = %d each). ",
+  "Total consumption has a mean above its median and a wide range; ",
+  "Figure 1 shows the right tail. One serving is 250 mL."), n),
+  first_width = "2.65in", size = "\\fontsize{8.5}{10}\\selectfont")
+```
+
+```{r}
+#| label: section-table
+#| results: asis
+# Section is categorical even though it is stored using numeric codes.
+display <- data.frame("Lecture section" = freq$Category, Count = freq$Count,
+  Percentage = paste0(fmt(freq$Percent, 2), "%"), check.names = FALSE)
+latex_table(display, sprintf(paste0("Lecture-section frequencies. ",
+  "LEC0101 contributes a larger share (%.2f\\%%) than LEC0102 (%.2f\\%%). ",
+  "Percentages use all %d responses."), freq$Percent[1], freq$Percent[2], n))
+```
+
+Total consumption has mean `r fmt(mean(d$Total_verified), 2)` and median `r fmt(median(d$Total_verified), 2)` servings/day, with a right tail (Figure 1). Energy drinks have an IQR of zero because responses are concentrated at zero. Average concentration is `r fmt(mean(d$Concentration), 2)`/10 and sleep is `r fmt(mean(d$Sleeping_hour), 2)` hours/day. Similar means and medians do not establish normality. Summaries use `datawizard` (easystats), with means and SDs checked against base R. IQRs use base R type-7 quantiles.
+
+{{< pagebreak >}}
+
+## 3. Distributions and unadjusted association
+
+```{r}
+#| label: fig-distributions
+#| fig-align: center
+#| fig-width: 9
+#| fig-height: 3.5
+#| out-width: 85%
+#| fig-pos: H
+#| fig-cap: "Distributions in the analysis sample. Beverage consumption is concentrated at low values with a long right tail. Concentration scores are discrete and bounded from 0 to 10. These features warrant caution with conventional normal-theory inference for Pearson correlation."
+par(mfrow = c(1, 2), mar = c(4.4, 4.2, 1.8, 1))
+hist(d$Total_verified, breaks = seq(0, max(22, maximum + 2), 2),
+  right = FALSE, col = "#79A9BD", border = "white",
+  main = "Daily beverage consumption", xlab = "Caffeinated drinks (servings/day)",
+  ylab = "Number of students")
+hist(d$Concentration, breaks = seq(-0.5, 10.5, 1), col = "#79A9BD",
+  border = "white", main = "Lecture concentration",
+  xlab = "Self-reported concentration (0-10)", ylab = "Number of students")
+```
+
+```{r}
+#| label: fig-association
+#| fig-align: center
+#| fig-width: 7.8
+#| fig-height: 3.7
+#| out-width: 80%
+#| fig-pos: H
+#| fig-cap: "Lecture concentration versus daily beverage consumption. Point area represents response frequency at each exact coordinate. The unadjusted fitted line is nearly flat, with no clear linear pattern. It summarizes the same unadjusted association assessed by Pearson correlation."
+par(mar = c(4.2, 4.2, 1.2, 1))
+xy <- aggregate(rep(1, n),
+  list(Total = d$Total_verified, Score = d$Concentration), sum)
+plot(xy$Total, xy$Score, pch = 21, bg = "#79A9BD", col = "#285568",
+  cex = sqrt(xy$x), ylim = c(0, 10), xlab = "Caffeinated drinks (servings/day)",
+  ylab = "Lecture concentration (0-10)")
+abline(lm(Concentration ~ Total_verified, d), col = "#A64734", lwd = 2)
+legend("topright", c("1 student", "4 students", "Unadjusted fit"),
+  pch = c(21, 21, NA), pt.cex = c(1, 2, NA), pt.bg = "#79A9BD",
+  col = c("#285568", "#285568", "#A64734"), lty = c(NA, NA, 1),
+  bty = "n", cex = 0.8)
+```
+
+**Assumptions.** We treat concentration scores as approximately interval-scaled. The conventional Pearson test assumes independent pairs from a bivariate normal population. Right-skewed consumption, bounded scores and the extreme consumption value make this approximation questionable. Independence cannot be verified from these plots. Following the EDA instructions, conventional inference is reported with these limitations.
+
+**Pearson correlation.** We assess linear association using $r=s_{xy}/(s_xs_y)$ and test $H_0:\rho=0$ against $H_A:\rho\ne0$ at $\alpha=0.05$. The estimate is $r=`r fmt(cor_test$estimate)`$ (95% CI: `r fmt(cor_test$conf.int[1])` to `r fmt(cor_test$conf.int[2])`; $t(`r cor_test$parameter`)=`r fmt(cor_test$statistic)`$, $p=`r fmt(cor_test$p.value)`$, $n=`r n`$). There is insufficient evidence of a linear association; this does not rule out nonlinear relationships. Excluding the maximum consumption value gives $r=`r fmt(cor_trim$estimate)`$ ($p=`r fmt(cor_trim$p.value)`$, $n=`r sum(keep)`$). The primary analysis retains every response.
+
+{{< pagebreak >}}
+
+## 4. Adjusted model and assumption checks
+
+Multiple linear regression treats concentration scores as approximately interval-scaled:
+
+$$
+\text{Concentration}_i=\beta_0+\beta_1\text{Beverage servings}_i
++\beta_2\text{Sleep hours}_i+\beta_3\text{Stress}_i+\varepsilon_i.
+$$
+
+Sleep and stress address the adjusted research question. No stepwise selection or removal based on $p$-values is used. Model assumptions are assessed before interpreting coefficient tests.
+
+```{r}
+#| label: fig-diagnostics
+#| fig-align: center
+#| fig-width: 9
+#| fig-height: 6
+#| out-width: 80%
+#| fig-pos: H
+#| fig-cap: "Adjusted-model diagnostics. Q-Q lower-tail departures suggest nonnormal residuals. The scale-location curve generally declines, raising concern about constant variance. The residual smooth shows mild curvature. The leverage panel flags influential observations; dashed contours show Cook's distance."
+par(mfrow = c(2, 2), mar = c(4.1, 4.3, 2, 1))
+plot(model, which = c(1, 2, 3, 5), id.n = 0,
+  caption = c("Residuals versus fitted concentration", "Normal Q-Q",
+  "Scale-location", "Cook's distance", "Residuals versus leverage",
+  "Cook's distance versus leverage"))
+```
+
+**Linearity and equal variance.** The residual smooth shows mild curvature. The scale-location smooth generally declines, with a small rise near fitted scores of 6.8. Few observations occur at the upper fitted values. These patterns raise concerns about the linear mean and constant-variance approximations; equal variance cannot be regarded as clearly satisfied.
+
+**Residual normality.** The Q-Q plot departs from the reference line in the lower tail. Shapiro-Wilk gives $W=`r fmt(normality$statistic)`$, $p=`r fmt(normality$p.value, 4)`$, providing evidence against residual normality at 5%. In line with the checkpoint instructions, conventional OLS inference is retained despite these assumption concerns. Its confidence intervals and $p$-values require caution.
+
+**Influence.** `r sum(cooks > 4 / n)` observations exceed $4/n=`r fmt(4 / n, 4)`$ for Cook's distance; the maximum is `r fmt(max(cooks))`. The `r maximum`-serving observation has Cook's distance `r fmt(cooks[which.max(d$Total_verified)])` and high leverage. These are review flags, not automatic deletion rules. Section 5 checks sensitivity specifically to the largest consumption value, not to every influential response.
+
+**Independence and sampling.** Independence cannot be verified from plots. The supplied dataset and codebook do not establish the recruitment process, random selection or inclusion probabilities. These unweighted sample results do not establish representativeness of all STA304H5 students.
+
+## 5. Regression results and sensitivity check
+
+```{r}
+#| label: coefficient-table
+#| results: asis
+display <- data.frame(Predictor = c("Intercept",
+  "Caffeinated drinks (per serving/day)", "Sleep (per hour/day)",
+  "Stress (per scale point)"), Estimate = fmt(coefs[, 1]), SE = fmt(coefs[, 2]),
+  "95% CI" = paste0("[", fmt(coefs[, 5]), ", ", fmt(coefs[, 6]), "]"),
+  t = fmt(coefs[, 3]), p = fmt(coefs[, 4]), check.names = FALSE)
+latex_table(display, sprintf(paste0("Multiple linear regression predicting ",
+  "concentration (0--10), n = %d. All three slope intervals include zero. ",
+  "Estimates are unstandardized; SEs and two-sided tests use conventional OLS ",
+  "inference."), n), first_width = "2.3in",
+  size = "\\fontsize{9}{11}\\selectfont")
+```
+
+Holding sleep and stress constant, one additional daily serving is associated with an estimated `r fmt(coefs[2, 1])`-point change in concentration. Its 95% confidence interval spans zero (`r fmt(coefs[2, 5])` to `r fmt(coefs[2, 6])`; $t(`r df.residual(model)`)=`r fmt(coefs[2, 3])`$, $p=`r fmt(coefs[2, 4])`$). Sleep and stress also have nonsignificant slopes at 5%. There are no significant predictor associations for which to report directional conclusions. The significant intercept has little substantive meaning: its reference value of zero sleep is outside the observed range.
+
+The model explains approximately `r fmt(100 * fit$r.squared, 2)`% of observed concentration variation ($R^2=`r fmt(fit$r.squared, 4)`$, adjusted $R^2=`r fmt(fit$adj.r.squared, 4)`$). The joint test of the three slopes is not significant: $F(3,`r df.residual(model)`)=`r fmt(fit$fstatistic[1])`$, $p=`r fmt(model_p)`$. Negative adjusted $R^2$ indicates that the improvement in fit does not compensate for the number of predictors.
+
+```{r}
+#| label: sensitivity-table
+#| results: asis
+display <- data.frame(Analysis = c("Primary: all responses",
+  "Exclude largest beverage total"), n = c(n, sum(keep)),
+  Coefficient = fmt(c(coefs[2, 1], trim[1])), p = fmt(c(coefs[2, 4], trim[4])))
+latex_table(display, paste0("Sensitivity to excluding the largest beverage ",
+  "total. The beverage association remains nonsignificant; the primary ",
+  "analysis retains every response."), first_width = "3.55in")
+```
+
+Removing the `r maximum`-serving response changes the adjusted beverage estimate to `r fmt(trim[1])` (95% CI: `r fmt(trim[5])` to `r fmt(trim[6])`). This check does not justify deletion or establish stability to every influential observation. The primary analysis retains this response because no recording error has been established.
+
+## 6. Interpretation and limitations
+
+Neither Pearson correlation nor the adjusted linear model provides evidence of a linear association between daily caffeinated beverage servings and lecture concentration in this sample. The estimated association is small, but its interval permits negative and positive values. A nonsignificant test does not prove no relationship.
+
+Observational self-reports over seven days do not support causal claims. Equal beverage volumes can contain different caffeine doses. Bounded ratings are treated as interval variables only approximately. Reporting error, unmeasured factors, uncertain sampling, influential observations and sample size limit interpretation. Before the next checkpoint, high consumption should be checked against original responses if available; corrections require evidence and documentation.
+
+**Sources and reproducibility.** Definitions follow the supplied *Codebook*; analysis follows the *STA304 Exploratory Data Analysis Instructions*. This QMD reads only the supplied CSV; all analysis code, tables and plotting instructions are embedded. Numerical results are calculated before display rounding. The Appendix displays the executed R code. Neither the dataset nor the reference documents are modified.
+
+{{< pagebreak >}}
+
+## Appendix
+
+Place this QMD beside the supplied CSV, keeping the CSV filename unchanged. Install `datawizard`, `knitr` and `rmarkdown`, then render the QMD with Quarto and a working PDF engine. The following code is collected from this document's R chunks; it is displayed here without being executed again. All tables and figures are regenerated during rendering; no external scripts, saved images or table files are read.
+
+```{r}
+#| label: appendix-code
+#| results: asis
+# Show the actual embedded code, avoiding a second manually maintained copy.
+labs <- setdiff(knitr::all_labels(), "appendix-code")
+for (lab in labs) {
+  code <- knitr::knit_code$get(lab)
+  cat("\n```r\n# Chunk: ", lab, "\n", paste(code, collapse = "\n"),
+      "\n```\n\n", sep = "")
+}
+```
+
