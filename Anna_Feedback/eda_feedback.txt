@@ -1,0 +1,41 @@
+STA304 Exploratory Data Analysis Feedback
+
+Disclaimer: in the process of constructing feedback, I recorded my audio and got AI to rephrase my feedback in a concise, clear manner so that I can mark faster + you get more detailed feedback. I did not run any of the assignments through AI.
+
+Normality in the summary statistics
+
+In the passage on total consumption, you say similar means and medians do not establish normality. Whether something is Gaussian comes up later, in the assumption checks. The readers who care about normality do not need to hear it at the descriptive stage. This sentence can be cut.
+
+Unclear passage on Pearson correlation
+
+I do not understand what your passage on normal-theory inference for Pearson correlation means. You say beverage consumption is concentrated at low values with a long right tail, concentration scores are discrete and bounded from 0 to 10, and these features warrant caution. Say directly which assumption you are worried about and why these features matter for it.
+
+Independence
+
+You did not need to comment on independence. We can assume students are not collaborating to fill out a questionnaire, and there is no reason to suspect otherwise. The paragraph on independence and sampling adds nothing.
+
+Adjusted R^2
+
+You say a negative adjusted $R^2$ indicates that the improvement in fit does not compensate for the number of predictors. I do not think it necessarily means that. Adjusted $R^2$ penalizes each predictor you add, and it is mainly used for model selection. I would leave it out of your report, where it is just noise for this study.
+
+Consistent wording
+
+You need to be careful about wording. In the passage about removing the 20-serving response, you refer to the adjusted beverage estimate. The variable is called "Caffeinated drinks (per serving/day)." Beverages are similar, but not all beverages contain caffeine, so use the variable name consistently.
+
+Statements you can cut
+
+Your audience knows statistics, so you do not need to say that a nonsignificant test does not prove no relationship, or that observational self-reports over seven days do not support causal claims. These statements can be cut.
+
+Unclear closing passage
+
+I do not understand what you are getting at in the passage that starts with "Equal beverage volumes can contain different caffeine doses." It lists several limitations without connecting them to your results, and the closing suggestion about checking high consumption against original responses is hard to follow.
+
+Grade breakdown
+
+Checking Model Assumptions (0.35 / 0.4)
+Interpretation of whether the assumptions were violated (0.05 / 0.1). I deducted 0.05 because the passage on Pearson correlation does not say which assumption is a concern, and the paragraph on independence covers something that did not need checking.
+
+Computing Statistical Tests (0.35 / 0.4)
+Appropriate test or model computed and reported (0.20 / 0.25). I deducted 0.05 because adjusted $R^2$ is interpreted inaccurately and is not needed for this study, and because the closing passage on limitations is unclear and does not connect the limitations to your results.
+
+Total (1.90 / 2)
