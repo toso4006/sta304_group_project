@@ -144,7 +144,7 @@ latex_table(display, sprintf(paste0("Lecture-section frequencies. ",
   "Percentages use all %d responses."), freq$Percent[1], freq$Percent[2], n))
 ```
 
-Total consumption has mean `r fmt(mean(d$Total_verified), 2)` and median `r fmt(median(d$Total_verified), 2)` servings/day, with a right tail (Figure 1). Energy drinks have an IQR of zero because responses are concentrated at zero. Average concentration is `r fmt(mean(d$Concentration), 2)`/10 and sleep is `r fmt(mean(d$Sleeping_hour), 2)` hours/day. Similar means and medians do not establish normality. Summaries use `datawizard` (easystats), with means and SDs checked against base R. IQRs use base R type-7 quantiles.
+Total consumption has mean `r fmt(mean(d$Total_verified), 2)` and median `r fmt(median(d$Total_verified), 2)` servings/day, with a right tail (Figure 1). Energy drinks have an IQR of zero because responses are concentrated at zero. Average concentration is `r fmt(mean(d$Concentration), 2)`/10 and sleep is `r fmt(mean(d$Sleeping_hour), 2)` hours/day. Summaries use `datawizard` (easystats), with means and SDs checked against base R. IQRs use base R type-7 quantiles.
 
 {{< pagebreak >}}
 
@@ -157,11 +157,11 @@ Total consumption has mean `r fmt(mean(d$Total_verified), 2)` and median `r fmt(
 #| fig-height: 3.5
 #| out-width: 85%
 #| fig-pos: H
-#| fig-cap: "Distributions in the analysis sample. Beverage consumption is concentrated at low values with a long right tail. Concentration scores are discrete and bounded from 0 to 10. These features warrant caution with conventional normal-theory inference for Pearson correlation."
+#| fig-cap: "Distributions in the analysis sample. Daily caffeinated drinks are concentrated at low values with a long right tail. Most concentration scores lie between 5 and 8 on the 0-10 scale."
 par(mfrow = c(1, 2), mar = c(4.4, 4.2, 1.8, 1))
 hist(d$Total_verified, breaks = seq(0, max(22, maximum + 2), 2),
   right = FALSE, col = "#79A9BD", border = "white",
-  main = "Daily beverage consumption", xlab = "Caffeinated drinks (servings/day)",
+  main = "Daily caffeinated drinks", xlab = "Caffeinated drinks (servings/day)",
   ylab = "Number of students")
 hist(d$Concentration, breaks = seq(-0.5, 10.5, 1), col = "#79A9BD",
   border = "white", main = "Lecture concentration",
@@ -175,7 +175,7 @@ hist(d$Concentration, breaks = seq(-0.5, 10.5, 1), col = "#79A9BD",
 #| fig-height: 3.7
 #| out-width: 80%
 #| fig-pos: H
-#| fig-cap: "Lecture concentration versus daily beverage consumption. Point area represents response frequency at each exact coordinate. The unadjusted fitted line is nearly flat, with no clear linear pattern. It summarizes the same unadjusted association assessed by Pearson correlation."
+#| fig-cap: "Lecture concentration versus daily caffeinated drinks (servings/day). Point area represents response frequency at each exact coordinate. The unadjusted fitted line is nearly flat, with no clear linear pattern."
 par(mar = c(4.2, 4.2, 1.2, 1))
 xy <- aggregate(rep(1, n),
   list(Total = d$Total_verified, Score = d$Concentration), sum)
@@ -189,9 +189,9 @@ legend("topright", c("1 student", "4 students", "Unadjusted fit"),
   bty = "n", cex = 0.8)
 ```
 
-**Assumptions.** We treat concentration scores as approximately interval-scaled. The conventional Pearson test assumes independent pairs from a bivariate normal population. Right-skewed consumption, bounded scores and the extreme consumption value make this approximation questionable. Independence cannot be verified from these plots. Following the EDA instructions, conventional inference is reported with these limitations.
+**Pearson assumption check.** We treat concentration scores as approximately interval-scaled. The conventional Pearson test and confidence interval rely on a bivariate-normal model for caffeinated drinks and concentration. Such a model requires normal marginal distributions. The pronounced right skew in caffeinated drinks is inconsistent with a normal margin; the discrete, bounded concentration ratings also depart from a continuous normal margin. The bivariate-normal assumption is therefore questionable. Following the EDA instructions, we retain Pearson correlation and report its conventional test and confidence interval as approximations.
 
-**Pearson correlation.** We assess linear association using $r=s_{xy}/(s_xs_y)$ and test $H_0:\rho=0$ against $H_A:\rho\ne0$ at $\alpha=0.05$. The estimate is $r=`r fmt(cor_test$estimate)`$ (95% CI: `r fmt(cor_test$conf.int[1])` to `r fmt(cor_test$conf.int[2])`; $t(`r cor_test$parameter`)=`r fmt(cor_test$statistic)`$, $p=`r fmt(cor_test$p.value)`$, $n=`r n`$). There is insufficient evidence of a linear association; this does not rule out nonlinear relationships. Excluding the maximum consumption value gives $r=`r fmt(cor_trim$estimate)`$ ($p=`r fmt(cor_trim$p.value)`$, $n=`r sum(keep)`$). The primary analysis retains every response.
+**Pearson correlation.** We assess linear association using $r=s_{xy}/(s_xs_y)$ and test $H_0:\rho=0$ against $H_A:\rho\ne0$ at $\alpha=0.05$. The estimate is $r=`r fmt(cor_test$estimate)`$ (95% CI: `r fmt(cor_test$conf.int[1])` to `r fmt(cor_test$conf.int[2])`; $t(`r cor_test$parameter`)=`r fmt(cor_test$statistic)`$, $p=`r fmt(cor_test$p.value)`$, $n=`r n`$). There is insufficient evidence of a linear association. Excluding the maximum consumption value gives $r=`r fmt(cor_trim$estimate)`$ ($p=`r fmt(cor_trim$p.value)`$, $n=`r sum(keep)`$). The primary analysis retains every response.
 
 {{< pagebreak >}}
 
@@ -200,7 +200,7 @@ legend("topright", c("1 student", "4 students", "Unadjusted fit"),
 Multiple linear regression treats concentration scores as approximately interval-scaled:
 
 $$
-\text{Concentration}_i=\beta_0+\beta_1\text{Beverage servings}_i
+\text{Concentration}_i=\beta_0+\beta_1\text{Caffeinated drinks}_i
 +\beta_2\text{Sleep hours}_i+\beta_3\text{Stress}_i+\varepsilon_i.
 $$
 
@@ -227,8 +227,6 @@ plot(model, which = c(1, 2, 3, 5), id.n = 0,
 
 **Influence.** `r sum(cooks > 4 / n)` observations exceed $4/n=`r fmt(4 / n, 4)`$ for Cook's distance; the maximum is `r fmt(max(cooks))`. The `r maximum`-serving observation has Cook's distance `r fmt(cooks[which.max(d$Total_verified)])` and high leverage. These are review flags, not automatic deletion rules. Section 5 checks sensitivity specifically to the largest consumption value, not to every influential response.
 
-**Independence and sampling.** Independence cannot be verified from plots. The supplied dataset and codebook do not establish the recruitment process, random selection or inclusion probabilities. These unweighted sample results do not establish representativeness of all STA304H5 students.
-
 ## 5. Regression results and sensitivity check
 
 ```{r}
@@ -246,28 +244,28 @@ latex_table(display, sprintf(paste0("Multiple linear regression predicting ",
   size = "\\fontsize{9}{11}\\selectfont")
 ```
 
-Holding sleep and stress constant, one additional daily serving is associated with an estimated `r fmt(coefs[2, 1])`-point change in concentration. Its 95% confidence interval spans zero (`r fmt(coefs[2, 5])` to `r fmt(coefs[2, 6])`; $t(`r df.residual(model)`)=`r fmt(coefs[2, 3])`$, $p=`r fmt(coefs[2, 4])`$). Sleep and stress also have nonsignificant slopes at 5%. There are no significant predictor associations for which to report directional conclusions. The significant intercept has little substantive meaning: its reference value of zero sleep is outside the observed range.
+Holding sleep and stress constant, one additional daily serving is associated with an estimated `r fmt(coefs[2, 1])`-point change in concentration. Its 95% confidence interval spans zero (`r fmt(coefs[2, 5])` to `r fmt(coefs[2, 6])`; $t(`r df.residual(model)`)=`r fmt(coefs[2, 3])`$, $p=`r fmt(coefs[2, 4])`$). Sleep and stress also have nonsignificant slopes at 5%. The significant intercept has little substantive meaning: its reference value of zero sleep is outside the observed range.
 
-The model explains approximately `r fmt(100 * fit$r.squared, 2)`% of observed concentration variation ($R^2=`r fmt(fit$r.squared, 4)`$, adjusted $R^2=`r fmt(fit$adj.r.squared, 4)`$). The joint test of the three slopes is not significant: $F(3,`r df.residual(model)`)=`r fmt(fit$fstatistic[1])`$, $p=`r fmt(model_p)`$. Negative adjusted $R^2$ indicates that the improvement in fit does not compensate for the number of predictors.
+The model explains approximately `r fmt(100 * fit$r.squared, 2)`% of observed concentration variation ($R^2=`r fmt(fit$r.squared, 4)`$). The joint test of the three slopes is not significant: $F(3,`r df.residual(model)`)=`r fmt(fit$fstatistic[1])`$, $p=`r fmt(model_p)`$.
 
 ```{r}
 #| label: sensitivity-table
 #| results: asis
 display <- data.frame(Analysis = c("Primary: all responses",
-  "Exclude largest beverage total"), n = c(n, sum(keep)),
+  "Exclude largest total of caffeinated drinks"), n = c(n, sum(keep)),
   Coefficient = fmt(c(coefs[2, 1], trim[1])), p = fmt(c(coefs[2, 4], trim[4])))
-latex_table(display, paste0("Sensitivity to excluding the largest beverage ",
-  "total. The beverage association remains nonsignificant; the primary ",
+latex_table(display, paste0("Sensitivity to excluding the largest total of ",
+  "caffeinated drinks. Its coefficient remains nonsignificant; the primary ",
   "analysis retains every response."), first_width = "3.55in")
 ```
 
-Removing the `r maximum`-serving response changes the adjusted beverage estimate to `r fmt(trim[1])` (95% CI: `r fmt(trim[5])` to `r fmt(trim[6])`). This check does not justify deletion or establish stability to every influential observation. The primary analysis retains this response because no recording error has been established.
+Removing the `r maximum`-serving response changes the coefficient for caffeinated drinks (per serving/day), adjusted for sleep and stress, from `r fmt(coefs[2, 1])` to `r fmt(trim[1])` (95% CI after exclusion: `r fmt(trim[5])` to `r fmt(trim[6])`; $p=`r fmt(trim[4])`$). The primary analysis retains this response because no recording error has been established.
 
 ## 6. Interpretation and limitations
 
-Neither Pearson correlation nor the adjusted linear model provides evidence of a linear association between daily caffeinated beverage servings and lecture concentration in this sample. The estimated association is small, but its interval permits negative and positive values. A nonsignificant test does not prove no relationship.
+Neither Pearson correlation nor the multiple linear regression identifies a statistically significant linear association between daily caffeinated drinks and lecture concentration in this sample. Adjusting for sleep and stress leaves the estimated coefficient close to zero, and the model explains only `r fmt(100 * fit$r.squared, 2)`% of the observed concentration variation.
 
-Observational self-reports over seven days do not support causal claims. Equal beverage volumes can contain different caffeine doses. Bounded ratings are treated as interval variables only approximately. Reporting error, unmeasured factors, uncertain sampling, influential observations and sample size limit interpretation. Before the next checkpoint, high consumption should be checked against original responses if available; corrections require evidence and documentation.
+These results concern the number of 250 mL servings, which pools drink types with different caffeine content. The coefficient for caffeinated drinks therefore describes an association with serving counts; it does not directly estimate an association with caffeine dose in milligrams. The residual nonnormality and constant-variance concerns in Section 4 also limit the reliability of the conventional OLS confidence intervals and tests. Finally, excluding the highest total changes the coefficient from `r fmt(coefs[2, 1])` to `r fmt(trim[1])`, showing that its magnitude is sensitive to that response even though the test remains nonsignificant.
 
 **Sources and reproducibility.** Definitions follow the supplied *Codebook*; analysis follows the *STA304 Exploratory Data Analysis Instructions*. This QMD reads only the supplied CSV; all analysis code, tables and plotting instructions are embedded. Numerical results are calculated before display rounding. The Appendix displays the executed R code. Neither the dataset nor the reference documents are modified.
 
